@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Building Critter Bingo</title>
+
+<!-- Firebase scripts - leave these as they are -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+:root{
+  --ink:#183522;
+  --leaf:#315f3b;
+  --cream:#f5eddc;
+  --paper:#fffaf0;
+  --gold:#b77b2b;
+  --blue:#426f86;
+  --purple:#75558c;
+  --brown:#7b4c24;
+  --tick:#2f7d3b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: Georgia, "Trebuchet MS", Arial, sans-serif;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(49,95,59,.08), transparent 25%),
+    radial-gradient(circle at 90% 5%, rgba(183,123,43,.08), transparent 25%),
+    linear-gradient(180deg,#f8f1df,#efe2c5);
+  color:var(--ink);
+}
+header{
+  max-width:1200px;
+  margin:22px auto 10px;
+  padding:18px;
+  text-align:center;
+}
+h1{
+  margin:0;
+  font-size:clamp(2.1rem,6vw,5rem);
+  letter-spacing:.08em;
+  color:var(--ink);
+  text-shadow: 1px 1px 0 #d7c7a1;
+}
+.subtitle{
+  margin:.2rem 0 1rem;
+  font-weight:700;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.status{
+  display:inline-block;
+  padding:8px 14px;
+  border:2px solid var(--leaf);
+  border-radius:999px;
+  background:rgba(255,250,240,.82);
+  font-weight:700;
+}
+.status.good{background:#dff0d8}
+.status.bad{background:#f5d3d3}
+.wrap{
+  max-width:1250px;
+  margin:0 auto 40px;
+  padding:0 14px 30px;
+}
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  justify-content:center;
+  margin:16px 0 20px;
+}
+button{
+  border:2px solid var(--ink);
+  background:var(--paper);
+  color:var(--ink);
+  padding:10px 14px;
+  border-radius:14px;
+  cursor:pointer;
+  font-weight:800;
+  box-shadow:2px 2px 0 rgba(24,53,34,.25);
+}
+button.active{
+  background:var(--leaf);
+  color:white;
+}
+button:hover{transform:translateY(-1px)}
+.board{
+  background:rgba(255,250,240,.92);
+  border:5px solid var(--ink);
+  border-radius:24px;
+  padding:16px;
+  box-shadow:0 12px 35px rgba(24,53,34,.18);
+  position:relative;
+  overflow:hidden;
+}
+.board:before{
+  content:"";
+  position:absolute;
+  inset:8px;
+  border:2px dashed rgba(24,53,34,.22);
+  border-radius:18px;
+  pointer-events:none;
+}
+.board-title{
+  text-align:center;
+  margin:8px 0 16px;
+}
+.board-title h2{
+  margin:0;
+  font-size:clamp(1.5rem,4vw,3rem);
+  letter-spacing:.05em;
+}
+.board-title p{margin:4px 0 0;font-weight:700}
+.grid{
+  display:grid;
+  gap:10px;
+  position:relative;
+  z-index:2;
+}
+.grid.main{grid-template-columns:repeat(5,1fr)}
+.grid.team{grid-template-columns:repeat(4,1fr)}
+.tile{
+  min-height:126px;
+  border:2px solid rgba(24,53,34,.75);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.9),rgba(246,236,214,.88));
+  border-radius:14px;
+  padding:10px 8px 12px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:space-between;
+  text-align:center;
+  cursor:pointer;
+  position:relative;
+  overflow:hidden;
+}
+.tile:hover{background:#fff}
+.icon{
+  font-size:2.6rem;
+  line-height:1;
+  filter: drop-shadow(1px 2px 0 rgba(0,0,0,.12));
+}
+.label{
+  font-size:.9rem;
+  text-transform:uppercase;
+  font-weight:900;
+  letter-spacing:.02em;
+}
+.tile.checked{
+  background:linear-gradient(180deg,#daf0d5,#bfe4bc);
+  border-color:var(--tick);
+}
+.tile.checked:after{
+  content:"✓";
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  font-size:5.6rem;
+  color:rgba(47,125,59,.78);
+  font-family:Arial, sans-serif;
+  font-weight:900;
+  transform:rotate(-8deg);
+  pointer-events:none;
+}
+.tile.checked .icon,.tile.checked .label{opacity:.38}
+.meta{
+  margin-top:8px;
+  font-size:.72rem;
+  font-family:Arial, sans-serif;
+  opacity:.75;
+}
+.footer-note{
+  margin:16px auto 0;
+  text-align:center;
+  font-weight:800;
+  letter-spacing:.03em;
+}
+.admin{
+  margin:18px auto 0;
+  max-width:950px;
+  background:rgba(255,250,240,.85);
+  border:2px solid rgba(24,53,34,.3);
+  padding:14px;
+  border-radius:18px;
+  font-family:Arial, sans-serif;
+}
+details summary{font-weight:900;cursor:pointer}
+code, pre{
+  background:#1e2d22;
+  color:#eff8e7;
+  border-radius:10px;
+}
+pre{padding:12px;overflow:auto}
+.small{font-size:.88rem}
+@media(max-width:850px){
+  .grid.main,.grid.team{grid-template-columns:repeat(3,1fr)}
+  .tile{min-height:112px}
+}
+@media(max-width:560px){
+  .grid.main,.grid.team{grid-template-columns:repeat(2,1fr)}
+  .tile{min-height:104px}
+  .icon{font-size:2.2rem}
+}
+</style>
+</head>
+
+<body>
+<header>
+  <h1>BUILDING CRITTER BINGO</h1>
+  <div class="subtitle">How many have been spotted at work?</div>
+  <div id="status" class="status bad">Firebase config needed</div>
+</header>
+
+<div class="wrap">
+  <div class="controls" id="boardButtons"></div>
+
+  <section class="board">
+    <div class="board-title">
+      <h2 id="boardTitle">Main Board</h2>
+      <p id="boardDesc">Tap a tile to mark a sighting.</p>
+    </div>
+    <div id="grid" class="grid main"></div>
+    <div class="footer-note">👀 Keep your eyes open... you never know who or what is clocking in!</div>
+  </section>
+
+  <section class="admin">
+    <details open>
+      <summary>Setup: paste your Firebase config here</summary>
+      <p class="small">Open this file in Notepad, find the section below, and replace the placeholder values with your Firebase web app config. Save, then upload this single <b>index.html</b> file to GitHub Pages.</p>
+      <pre>// LOOK FOR THIS SECTION NEAR THE TOP OF THE SCRIPT:
+const firebaseConfig = {
+  apiKey: "PASTE_YOUR_API_KEY_HERE",
+  authDomain: "PASTE_YOUR_AUTH_DOMAIN_HERE",
+  projectId: "PASTE_YOUR_PROJECT_ID_HERE",
+  storageBucket: "PASTE_YOUR_STORAGE_BUCKET_HERE",
+  messagingSenderId: "PASTE_YOUR_MESSAGING_SENDER_ID_HERE",
+  appId: "PASTE_YOUR_APP_ID_HERE"
+};</pre>
+    </details>
+  </section>
+</div>
+
+<script>
+/* ============================================================
+   FIREBASE CONFIG SECTION
+   Replace ONLY the placeholder words inside the quote marks.
+   Keep the commas and curly brackets.
+   ============================================================ */
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBp-Lt-hCF7N34_gxiXcyN5Sei9PTkxkXM",
+  authDomain: "building-critter-bingo.firebaseapp.com",
+  projectId: "building-critter-bingo",
+  storageBucket: "building-critter-bingo.firebasestorage.app",
+  messagingSenderId: "912113250710",
+  appId: "1:912113250710:web:9b53f8651666b4ba6bedb7"
+};
+
+/* ============================================================
+   BINGO BOARDS - no need to edit below this line
+   ============================================================ */
+
+const icons = {
+  "Magpies":"🐦‍⬛","Raccoons":"🦝","Foxes":"🦊","Geese":"🪿","Mice":"🐭",
+  "Dragonflies":"🪰","Hornets":"🐝","Frogs / Toads / Newts":"🐸","Mosquitoes":"🦟",
+  "Snakes":"🐍","Ladybirds / Ladybugs":"🐞","Woodlice":"🪲","Wasps / Bees":"🐝",
+  "Pigeons":"🕊️","Moths":"🦋","Birds Nest":"🪺","Mystery Smell":"〰️",
+  "Unknown Flying Insect Panic":"❓","Squirrels":"🐿️","Ducks":"🦆",
+  "Cockroaches":"🪳","Spiders":"🕷️","Ants":"🐜","Rats":"🐀","Locusts":"🦗",
+  "Bats":"🦇","Crickets":"🦗","Slugs / Snails":"🐌","Butterflies":"🦋","Cats":"🐈"
+};
+
+const boards = {
+  main: {
+    title: "Main Board",
+    desc: "All 30 workplace wildlife sightings.",
+    type: "main",
+    items: [
+      "Magpies","Raccoons","Foxes","Geese","Mice",
+      "Dragonflies","Hornets","Frogs / Toads / Newts","Mosquitoes","Snakes",
+      "Ladybirds / Ladybugs","Woodlice","Wasps / Bees","Pigeons","Moths",
+      "Birds Nest","Mystery Smell","Unknown Flying Insect Panic","Squirrels","Ducks",
+      "Cockroaches","Spiders","Ants","Rats","Locusts",
+      "Bats","Crickets","Slugs / Snails","Butterflies","Cats"
+    ]
+  },
+  team1: {
+    title: "Team Member 1",
+    desc: "12-box board.",
+    type: "team",
+    items: ["Magpies","Rats","Dragonflies","Spiders","Frogs / Toads / Newts","Ladybirds / Ladybugs","Wasps / Bees","Squirrels","Ducks","Mystery Smell","Birds Nest","Bats"]
+  },
+  team2: {
+    title: "Team Member 2",
+    desc: "12-box board.",
+    type: "team",
+    items: ["Geese","Hornets","Mice","Ants","Moths","Locusts","Crickets","Cockroaches","Unknown Flying Insect Panic","Pigeons","Woodlice","Slugs / Snails"]
+  },
+  team3: {
+    title: "Team Member 3",
+    desc: "12-box board.",
+    type: "team",
+    items: ["Raccoons","Foxes","Mosquitoes","Snakes","Butterflies","Birds Nest","Squirrels","Ducks","Cats","Magpies","Wasps / Bees","Rats"]
+  },
+  team4: {
+    title: "Team Member 4",
+    desc: "12-box board.",
+    type: "team",
+    items: ["Dragonflies","Spiders","Pigeons","Frogs / Toads / Newts","Woodlice","Ladybirds / Ladybugs","Ants","Moths","Crickets","Locusts","Cockroaches","Mystery Smell"]
+  }
+};
+
+let db = null;
+let currentBoard = "main";
+let liveData = {};
+
+function hasRealConfig(){
+  return firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("PASTE_");
+}
+
+function setStatus(text, good){
+  const s = document.getElementById("status");
+  s.textContent = text;
+  s.className = good ? "status good" : "status bad";
+}
+
+function safeId(text){
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function initFirebase(){
+  if(!hasRealConfig()){
+    setStatus("Firebase config needed - local demo mode", false);
+    return;
+  }
+  try{
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    setStatus("Live sync connected", true);
+    listenToBoard(currentBoard);
+  }catch(err){
+    console.error(err);
+    setStatus("Firebase error - check config", false);
+  }
+}
+
+function createButtons(){
+  const holder = document.getElementById("boardButtons");
+  Object.keys(boards).forEach(key => {
+    const btn = document.createElement("button");
+    btn.textContent = boards[key].title;
+    btn.onclick = () => switchBoard(key);
+    btn.id = "btn-" + key;
+    holder.appendChild(btn);
+  });
+}
+
+let unsubscribe = null;
+
+function listenToBoard(boardKey){
+  if(unsubscribe){ unsubscribe(); unsubscribe = null; }
+  liveData = {};
+  if(!db){ renderBoard(); return; }
+
+  unsubscribe = db.collection("wildlifeBingo")
+    .doc(boardKey)
+    .collection("sightings")
+    .onSnapshot(snapshot => {
+      liveData = {};
+      snapshot.forEach(doc => liveData[doc.id] = doc.data());
+      renderBoard();
+    }, err => {
+      console.error(err);
+      setStatus("Sync issue - check Firestore rules", false);
+      renderBoard();
+    });
+}
+
+function switchBoard(key){
+  currentBoard = key;
+  listenToBoard(key);
+  renderBoard();
+}
+
+function renderBoard(){
+  const board = boards[currentBoard];
+  document.getElementById("boardTitle").textContent = board.title;
+  document.getElementById("boardDesc").textContent = board.desc;
+
+  Object.keys(boards).forEach(k => {
+    document.getElementById("btn-" + k).classList.toggle("active", k === currentBoard);
+  });
+
+  const grid = document.getElementById("grid");
+  grid.className = "grid " + board.type;
+  grid.innerHTML = "";
+
+  board.items.forEach(item => {
+    const id = safeId(item);
+    const checked = !!liveData[id];
+
+    const tile = document.createElement("div");
+    tile.className = "tile" + (checked ? " checked" : "");
+    tile.onclick = () => toggleItem(item);
+
+    const icon = document.createElement("div");
+    icon.className = "icon";
+    icon.textContent = icons[item] || "🌿";
+
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = item;
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = checked && liveData[id].updatedAt ? "spotted" : "tap to mark";
+
+    tile.appendChild(icon);
+    tile.appendChild(label);
+    tile.appendChild(meta);
+    grid.appendChild(tile);
+  });
+}
+
+async function toggleItem(item){
+  const id = safeId(item);
+
+  if(!db){
+    // local demo mode
+    if(liveData[id]) delete liveData[id];
+    else liveData[id] = { item, updatedAt: new Date().toISOString() };
+    renderBoard();
+    return;
+  }
+
+  const ref = db.collection("wildlifeBingo")
+    .doc(currentBoard)
+    .collection("sightings")
+    .doc(id);
+
+  const snap = await ref.get();
+  if(snap.exists){
+    await ref.delete();
+  }else{
+    await ref.set({
+      item: item,
+      board: currentBoard,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+}
+
+createButtons();
+initFirebase();
+renderBoard();
+</script>
+</body>
+</html>
